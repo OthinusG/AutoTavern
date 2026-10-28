@@ -1,0 +1,42 @@
+name: Sync upstream
+
+on:
+  schedule:
+    # Hourly. GitHub may delay scheduled runs under load.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge upstream/main into main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote add upstream https://github.com/MCG-NJU/AutoTavern.git
+          git fetch --no-tags upstream main
+
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "Already up to date with upstream/main"
+            exit 0
+          fi
+
+          # Fast-forwards when the fork has no local commits; otherwise creates
+          # a merge commit. Conflicts fail the job instead of dropping changes.
+          git merge --no-edit upstream/main
+          git push origin HEAD:main
